@@ -1,0 +1,79 @@
+// vi:ft=rust
+
+use std::str::FromStr;
+use crate::ast::{Value, Object};
+
+grammar;
+
+pub Digit: String = <d:r#"[0-9]+"#> => String::from(d);
+
+pub Fraction: String = <d:"."> <a:Digit+> => {
+    format!("{d}{}", a.join(""))
+};
+
+pub E = {
+    "e",
+    "E"
+};
+
+pub PlusOrMinus = {
+    "+",
+    "-"
+};
+
+pub Exponent = {
+    <E?><PlusOrMinus?><Digit+>
+};
+
+pub Number: Value = {
+    <m:"-"?><d:Digit><l:Digit*><f:Fraction?> => {
+        let joined = l.join("");
+        let minus = m.unwrap_or("");
+        let fraction = f.unwrap_or("".to_string());
+
+        Value::Number(
+            f32::from_str(
+                &format!("{minus}{d}{joined}{fraction}").to_owned()
+            ).unwrap()
+        )
+    },
+    <m:"-"?> "0" <f:Fraction?> => Value::Number(1.0),
+};
+
+pub String: Value = <s:r#""[a-zA-Z0-9]*""#> => Value::String(s.to_string());
+
+pub Array: Value = {
+    "[" <mut v:(<Value> ",")*> <e:Value?> "]" => match e {
+        None => Value::Array(v),
+        Some(e) => {
+            v.push(e);
+            Value::Array(v)
+        }
+    }
+};
+
+ValuePair: (Value, Value) = {
+    <k:String> ":" <v:Value> => (k, v),
+};
+
+pub Object: Value = {
+    "{" <mut v:(<ValuePair> ",")*> <e:ValuePair?> "}" => match e {
+        None => Value::Object(Object {
+            values: v
+        }),
+        Some(e) => {
+            v.push(e);
+            Value::Object(Object {values: v})
+        },
+    },
+};
+
+pub Value: Value = {
+    String => <>,
+    Array => <>,
+    Object => <>,
+    Number => <>,
+    "true" => Value::Boolean(true),
+    "false" => Value::Boolean(false),
+    "null" => Value::Null
+};
